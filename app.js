@@ -404,19 +404,42 @@ async function sendToModel(text, { isRetry = false } = {}){
 
     console.log("Response status:", res.status);
     
+    // Read response as text first to handle empty or non-JSON responses
+    const responseText = await res.text();
+    console.log("Response text:", responseText);
+    
     if (!res.ok) {
-      const errorText = await res.text();
-      console.error("API Error:", res.status, errorText);
+      console.error("API Error:", res.status, responseText);
       let errorMsg = `API Error (${res.status})`;
-      try {
-        const errorData = JSON.parse(errorText);
-        errorMsg = errorData.error?.message || errorData.message || errorMsg;
-      } catch {}
+      if (responseText) {
+        try {
+          const errorData = JSON.parse(responseText);
+          errorMsg = errorData.error?.message || errorData.message || errorMsg;
+        } catch {
+          // If not JSON, use the text as error message
+          errorMsg = responseText.length > 200 ? responseText.substring(0, 200) + "..." : responseText;
+        }
+      } else {
+        errorMsg = `API returned empty response (${res.status})`;
+      }
       throw new Error(errorMsg);
     }
     
-    const data = await res.json();
-    console.log("API Response:", data);
+    // Check if response is empty
+    if (!responseText || responseText.trim() === "") {
+      throw new Error("API returned empty response. Please check your API key and try again.");
+    }
+    
+    // Try to parse as JSON
+    let data;
+    try {
+      data = JSON.parse(responseText);
+      console.log("API Response:", data);
+    } catch (parseError) {
+      console.error("JSON Parse Error:", parseError, "Response text:", responseText);
+      throw new Error(`Invalid JSON response from API: ${responseText.substring(0, 100)}`);
+    }
+    
     const content = extractAssistantText(data) || "(No response)";
     convo.messages.push({ id: uid(), role: "assistant", content, createdAt: now() });
     convo.updatedAt = now();
@@ -424,6 +447,11 @@ async function sendToModel(text, { isRetry = false } = {}){
   } catch (err) {
     console.error("Send error:", err);
     let errorMsg = err.message || "Unknown error";
+    
+    // Check for JSON parsing errors
+    if (err.message.includes("JSON") || err.message.includes("Unexpected end of JSON input") || err.message.includes("Invalid JSON")) {
+      errorMsg = "Invalid response from API. This might be due to an invalid API key or API endpoint issue. Please check your API key in Settings.";
+    }
     
     // Check for CORS errors
     if (err.message.includes("Failed to fetch") || err.message.includes("NetworkError") || err.name === "TypeError") {
@@ -435,11 +463,16 @@ async function sendToModel(text, { isRetry = false } = {}){
       errorMsg = "Authentication failed: Please check your API key in Settings.";
     }
     
+    // Check for empty response errors
+    if (err.message.includes("empty response")) {
+      errorMsg = "API returned empty response. Please check your API key and ensure it's valid.";
+    }
+    
     const msg = isRetry ? "Retry failed" : "Request failed";
     convo.messages.push({ 
       id: uid(), 
       role: "assistant", 
-      content: `${msg}: ${errorMsg}. ${err.message.includes("CORS") ? "" : "Open Settings and check your API key."}`, 
+      content: `${msg}: ${errorMsg}. ${err.message.includes("CORS") || err.message.includes("JSON") ? "" : "Open Settings and check your API key."}`, 
       createdAt: now() 
     });
     convo.updatedAt = now();

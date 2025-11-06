@@ -42,13 +42,39 @@ app.post('/api/chat', async (req, res) => {
       })
     });
     
-    const data = await response.json();
+    // Read response as text first to handle empty or non-JSON responses
+    const responseText = await response.text();
     
     if (!response.ok) {
-      return res.status(response.status).json(data);
+      // Try to parse error response as JSON, otherwise return text
+      try {
+        const errorData = responseText ? JSON.parse(responseText) : { error: `HTTP ${response.status}` };
+        return res.status(response.status).json(errorData);
+      } catch {
+        return res.status(response.status).json({ 
+          error: responseText || `HTTP ${response.status} - Empty response` 
+        });
+      }
     }
     
-    res.json(data);
+    // Check if response is empty
+    if (!responseText || responseText.trim() === '') {
+      return res.status(500).json({ 
+        error: 'API returned empty response. Please check your API key.' 
+      });
+    }
+    
+    // Try to parse as JSON
+    try {
+      const data = JSON.parse(responseText);
+      res.json(data);
+    } catch (parseError) {
+      console.error('JSON Parse Error:', parseError, 'Response text:', responseText);
+      res.status(500).json({ 
+        error: 'Invalid JSON response from API', 
+        details: responseText.substring(0, 200) 
+      });
+    }
   } catch (error) {
     console.error('Proxy error:', error);
     res.status(500).json({ error: error.message || 'Internal server error' });
