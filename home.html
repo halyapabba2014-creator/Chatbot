@@ -1,0 +1,53 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Halya Chat • Home</title>
+    <link rel="preconnect" href="https://fonts.googleapis.com">
+    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+    <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700;800&display=swap" rel="stylesheet">
+    <link rel="stylesheet" href="styles.css">
+    <style>
+      .hero{min-height:100dvh;display:grid;place-items:center;padding:24px;background:radial-gradient(1200px 600px at 80% -10%,rgba(229,9,20,.12),transparent),radial-gradient(1000px 500px at -10% 120%,rgba(229,9,20,.08),transparent)}
+      .card{width:min(760px,100%);background:#0e0e0e;border:1px solid #262626;border-radius:20px;box-shadow:0 20px 60px rgba(0,0,0,.5);padding:28px;display:grid;gap:20px;text-align:center}
+      .title{font-size:var(--fs-4);font-weight:800}
+      .subtitle{color:var(--muted);font-size:var(--fs-1)}
+      .cta-row{display:flex;flex-wrap:wrap;gap:12px;justify-content:center}
+      .btn-xl{padding:14px 18px;border-radius:14px;border:1px solid #2a2a2a;background:var(--primary);color:#fff;font-weight:700;cursor:pointer}
+      .note{font-size:var(--fs-0);color:var(--muted)}
+    </style>
+</head>
+<body>
+  <section class="hero">
+    <div class="card">
+      <div>
+        <div class="title"><span class="netflix-red">Halya</span> Chat</div>
+        <div class="subtitle">Welcome — choose your language and start chatting.</div>
+      </div>
+      <div class="cta-row">
+        <button id="startBtn" class="btn-xl" type="button">Start Chat</button>
+      </div>
+      <div class="note">You can change language later in Settings.</div>
+    </div>
+  </section>
+
+  <script>
+    const STORAGE_KEY = "halya_euron_chat_v1";
+    const startBtn = document.getElementById("startBtn");
+
+    function getState(){
+      try{ return JSON.parse(localStorage.getItem(STORAGE_KEY)) || {}; }catch{ return {}; }
+    }
+    function setLang(lang){
+      const st = getState();
+      st.settings = st.settings || {};
+      st.settings.language = lang;
+      localStorage.setItem(STORAGE_KEY, JSON.stringify(st));
+    }
+    startBtn.addEventListener("click", () => { window.location.href = "index.html"; });
+  </script>
+</body>
+</html>
+
+

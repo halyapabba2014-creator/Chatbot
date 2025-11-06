@@ -1,0 +1,149 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Halya Chat</title>
+    <link rel="preconnect" href="https://fonts.googleapis.com">
+    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+    <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&display=swap" rel="stylesheet">
+    <link rel="stylesheet" href="styles.css">
+</head>
+<body>
+    <div id="app">
+        <aside class="sidebar" aria-label="Conversations sidebar">
+            <div class="brand">
+                <div class="logo">🤖</div>
+                <div class="brand-text"><span class="netflix-red">Halya</span> Chat</div>
+            </div>
+            <button class="new-chat" id="newChatBtn" title="New chat" data-i18n="sidebar.newChat">+ New Chat</button>
+            <div class="convos" id="convoList" role="list" aria-label="Conversations list">
+            </div>
+            <div class="sidebar-footer">
+                <button id="historyBtn" class="ghost">History</button>
+                <button id="settingsBtn" class="ghost" data-i18n="sidebar.settings">Settings</button>
+                <button id="exportAllBtn" class="ghost" data-i18n="sidebar.exportAll">Export All</button>
+                <button id="clearAllBtn" class="danger ghost" data-i18n="sidebar.clearAll">Clear All</button>
+            </div>
+        </aside>
+
+        <main class="chat">
+            <header class="chat-header">
+                <div class="chat-title">
+                    <div class="avatar bot">E</div>
+                    <div>
+                        <div class="title" data-i18n="header.title">Euron Assistant</div>
+                        <div class="subtitle" data-i18n="header.subtitle">Powered by euron.one • Netflix dark theme</div>
+                    </div>
+                </div>
+                <div class="header-actions">
+                    
+                    <button id="themeToggle" class="icon" title="Toggle theme" aria-label="Toggle theme">🌓</button>
+                    <button id="helpBtn" class="icon" title="Help" aria-label="Help">❓</button>
+                </div>
+            </header>
+
+            <section id="messages" class="messages" aria-live="polite" aria-label="Chat messages">
+                <!-- Messages render here -->
+            </section>
+
+            <footer class="composer">
+                <div class="input-wrap">
+                    <button id="attachBtn" class="icon" title="Attach file" data-i18n-title="composer.attach">📎</button>
+                    <textarea id="userInput" placeholder="Message Euron Assistant" rows="1" data-i18n-placeholder="composer.placeholder"></textarea>
+                    <button id="sendBtn" class="send" data-i18n="composer.send">Send</button>
+                </div>
+                <div class="hints">
+                    <button class="hint" data-i18n="hints.poem" data-i18n-data-text="prompts.poem" data-text="Write a poem about artificial intelligence">AI Poem</button>
+                    <button class="hint" data-i18n="hints.summarize" data-i18n-data-text="prompts.summarize" data-text="Summarize this text:">Summarize</button>
+                    <button class="hint" data-i18n="hints.explain" data-i18n-data-text="prompts.explain" data-text="Explain this code:">Explain Code</button>
+                    <button class="hint" data-i18n="hints.marketing" data-i18n-data-text="prompts.marketing" data-text="Generate ideas for a marketing campaign">Marketing Ideas</button>
+                </div>
+            </footer>
+        </main>
+    </div>
+
+    <!-- Settings Modal -->
+    <div class="modal" id="settingsModal" aria-hidden="true" role="dialog" aria-modal="true">
+        <div class="modal-content">
+            <div class="modal-header">
+                <div class="title" data-i18n="settings.title">Settings</div>
+                <button id="closeSettings" class="icon">✖</button>
+            </div>
+            <div class="modal-body">
+                <label class="field">
+                    <span data-i18n="settings.apiKey">Euron API Key</span>
+                    <input id="apiKeyInput" type="password" placeholder="euri-...">
+                    <small data-i18n="settings.keyNote">Your key is stored locally in this browser.</small>
+                </label>
+                <label class="field">
+                    <span data-i18n="settings.model">Model</span>
+                    <select id="modelSelect">
+                        <option value="gpt-4.1-nano">gpt-4.1-nano</option>
+                        <option value="gpt-4.1-mini">gpt-4.1-mini</option>
+                        <option value="gpt-4.1">gpt-4.1</option>
+                    </select>
+                </label>
+                <label class="field">
+                    <span data-i18n="settings.temperature">Temperature</span>
+                    <input id="tempInput" type="number" step="0.1" min="0" max="2" value="0.7">
+                </label>
+                <label class="field">
+                    <span data-i18n="settings.maxTokens">Max tokens</span>
+                    <input id="maxTokensInput" type="number" min="1" max="4000" value="1000">
+                </label>
+                <label class="toggle">
+                    <input id="enterToSend" type="checkbox" checked>
+                    <span data-i18n="settings.enterToSend">Press Enter to send</span>
+                </label>
+                
+            </div>
+            <div class="modal-footer">
+                <button id="saveSettings" class="primary" data-i18n="settings.save">Save</button>
+            </div>
+        </div>
+    </div>
+
+    <!-- Help Modal -->
+    <div class="modal" id="helpModal" aria-hidden="true" role="dialog" aria-modal="true">
+        <div class="modal-content">
+            <div class="modal-header">
+                <div class="title" data-i18n="help.title">Welcome</div>
+                <button id="closeHelp" class="icon">✖</button>
+            </div>
+            <div class="modal-body">
+                <p data-i18n-html="help.body1"><strong>Hello, I’m Halya.</strong> Welcome to your Euron-powered chat assistant.</p>
+                <p data-i18n="help.body2">Open Settings to add your API key to start chatting. Your key will be stored locally only.</p>
+                <p data-i18n="help.body3">Tip: Use quick prompts below the composer to get started.</p>
+            </div>
+            <div class="modal-footer">
+                <button id="openSettingsFromHelp" class="primary" data-i18n="help.openSettings">Open Settings</button>
+            </div>
+        </div>
+    </div>
+
+    <input id="fileInput" type="file" hidden>
+
+    <!-- History Modal -->
+    <div class="modal" id="historyModal" aria-hidden="true" role="dialog" aria-modal="true">
+        <div class="modal-content">
+            <div class="modal-header">
+                <div class="title">Chat History</div>
+                <button id="closeHistory" class="icon">✖</button>
+            </div>
+            <div class="modal-body">
+                <div style="display:flex; gap:10px; align-items:center">
+                    <input id="historySearch" type="text" placeholder="Search chats..." style="flex:1"/>
+                    <button id="historySortBtn" class="ghost">Sort</button>
+                </div>
+                <div id="historyList" style="display:grid; gap:10px; margin-top:12px"></div>
+            </div>
+        </div>
+    </div>
+
+    <script src="app.js"></script>
+</body>
+<!-- Built with ❤️ for Halya -->
+</html>
+
+
