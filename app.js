@@ -371,9 +371,15 @@ async function sendToModel(text, { isRetry = false } = {}){
   
   try {
     console.log("Sending request to Euron API...");
+    console.log("API Key (first 10 chars):", state.settings.apiKey?.substring(0, 10) + "...");
+    console.log("Messages payload:", messagesPayload);
+    
     // Use proxy endpoint when deployed to avoid CORS issues
     const isDeployed = window.location.hostname !== 'localhost' && window.location.hostname !== '127.0.0.1';
     const apiUrl = isDeployed ? '/api/chat' : 'https://api.euron.one/api/v1/euri/chat/completions';
+    
+    console.log("API URL:", apiUrl);
+    console.log("Is deployed:", isDeployed);
     
     const requestBody = isDeployed ? {
       messages: messagesPayload,
@@ -395,6 +401,9 @@ async function sendToModel(text, { isRetry = false } = {}){
       "Authorization": `Bearer ${state.settings.apiKey.trim()}`
     };
     
+    console.log("Request headers:", headers);
+    console.log("Request body:", requestBody);
+    
     const res = await fetch(apiUrl, {
       method: "POST",
       headers: headers,
@@ -403,10 +412,12 @@ async function sendToModel(text, { isRetry = false } = {}){
     });
 
     console.log("Response status:", res.status);
+    console.log("Response headers:", Object.fromEntries(res.headers.entries()));
     
     // Read response as text first to handle empty or non-JSON responses
     const responseText = await res.text();
-    console.log("Response text:", responseText);
+    console.log("Response text length:", responseText.length);
+    console.log("Response text:", responseText.substring(0, 500));
     
     if (!res.ok) {
       console.error("API Error:", res.status, responseText);
@@ -420,14 +431,15 @@ async function sendToModel(text, { isRetry = false } = {}){
           errorMsg = responseText.length > 200 ? responseText.substring(0, 200) + "..." : responseText;
         }
       } else {
-        errorMsg = `API returned empty response (${res.status})`;
+        errorMsg = `API returned empty response (${res.status}). This might indicate an invalid API key or API endpoint issue.`;
       }
       throw new Error(errorMsg);
     }
     
     // Check if response is empty
     if (!responseText || responseText.trim() === "") {
-      throw new Error("API returned empty response. Please check your API key and try again.");
+      console.error("Empty response received. Status:", res.status);
+      throw new Error(`API returned empty response (Status: ${res.status}). This usually means: 1) Invalid API key, 2) API endpoint issue, or 3) Rate limit exceeded. Please check your API key in Settings.`);
     }
     
     // Try to parse as JSON
@@ -465,7 +477,7 @@ async function sendToModel(text, { isRetry = false } = {}){
     
     // Check for empty response errors
     if (err.message.includes("empty response")) {
-      errorMsg = "API returned empty response. Please check your API key and ensure it's valid.";
+      errorMsg = err.message; // Use the detailed error message we created
     }
     
     const msg = isRetry ? "Retry failed" : "Request failed";

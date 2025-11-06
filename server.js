@@ -24,9 +24,25 @@ app.post('/api/chat', async (req, res) => {
   try {
     const { messages, model, max_tokens, temperature, apiKey } = req.body;
     
+    console.log('Proxy request received');
+    console.log('API Key (first 10 chars):', apiKey?.substring(0, 10) + '...');
+    console.log('Model:', model);
+    console.log('Messages count:', messages?.length);
+    
     if (!apiKey) {
+      console.error('API key missing');
       return res.status(400).json({ error: 'API key is required' });
     }
+    
+    const requestBody = {
+      messages: messages || [],
+      model: model || 'gpt-4.1-nano',
+      max_tokens: max_tokens || 1000,
+      temperature: temperature || 0.7
+    };
+    
+    console.log('Sending request to Euron API...');
+    console.log('Request body:', JSON.stringify(requestBody).substring(0, 200));
     
     const response = await fetch('https://api.euron.one/api/v1/euri/chat/completions', {
       method: 'POST',
@@ -34,16 +50,16 @@ app.post('/api/chat', async (req, res) => {
         'Content-Type': 'application/json',
         'Authorization': `Bearer ${apiKey}`
       },
-      body: JSON.stringify({
-        messages: messages || [],
-        model: model || 'gpt-4.1-nano',
-        max_tokens: max_tokens || 1000,
-        temperature: temperature || 0.7
-      })
+      body: JSON.stringify(requestBody)
     });
+    
+    console.log('Response status:', response.status);
+    console.log('Response headers:', Object.fromEntries(response.headers.entries()));
     
     // Read response as text first to handle empty or non-JSON responses
     const responseText = await response.text();
+    console.log('Response text length:', responseText.length);
+    console.log('Response text (first 500 chars):', responseText.substring(0, 500));
     
     if (!response.ok) {
       // Try to parse error response as JSON, otherwise return text
