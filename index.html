@@ -30,9 +30,9 @@
         <main class="chat">
             <header class="chat-header">
                 <div class="chat-title">
-                    <div class="avatar bot">E</div>
+                    <div class="avatar bot">H</div>
                     <div>
-                        <div class="title" data-i18n="header.title">Euron Assistant</div>
+                        <div class="title" data-i18n="header.title">Halya Chatbot</div>
                         <div class="subtitle" data-i18n="header.subtitle">Powered by euron.one • Netflix dark theme</div>
                     </div>
                 </div>
@@ -50,8 +50,8 @@
             <footer class="composer">
                 <div class="input-wrap">
                     <button id="attachBtn" class="icon" title="Attach file" data-i18n-title="composer.attach">📎</button>
-                    <textarea id="userInput" placeholder="Message Euron Assistant" rows="1" data-i18n-placeholder="composer.placeholder"></textarea>
-                    <button id="sendBtn" class="send" data-i18n="composer.send">Send</button>
+                    <textarea id="userInput" placeholder="Message Halya Chatbot" rows="1" data-i18n-placeholder="composer.placeholder" autocomplete="off" spellcheck="true" required></textarea>
+                    <button id="sendBtn" type="button" class="send" data-i18n="composer.send">Send</button>
                 </div>
                 <div class="hints">
                     <button class="hint" data-i18n="hints.poem" data-i18n-data-text="prompts.poem" data-text="Write a poem about artificial intelligence">AI Poem</button>
@@ -112,7 +112,7 @@
                 <button id="closeHelp" class="icon">✖</button>
             </div>
             <div class="modal-body">
-                <p data-i18n-html="help.body1"><strong>Hello, I’m Halya.</strong> Welcome to your Euron-powered chat assistant.</p>
+                <p data-i18n-html="help.body1"><strong>Hello, I'm Halya.</strong> Welcome to your Halya chatbot powered by Euron.</p>
                 <p data-i18n="help.body2">Open Settings to add your API key to start chatting. Your key will be stored locally only.</p>
                 <p data-i18n="help.body3">Tip: Use quick prompts below the composer to get started.</p>
             </div>
@@ -133,7 +133,7 @@
             </div>
             <div class="modal-body">
                 <div style="display:flex; gap:10px; align-items:center">
-                    <input id="historySearch" type="text" placeholder="Search chats..." style="flex:1"/>
+                    <input id="historySearch" type="text" placeholder="Search chats..." style="flex:1; background:#0b0b0b; border:1px solid #262626; border-radius:12px; color:var(--text); padding:12px; font:inherit; outline:none"/>
                     <button id="historySortBtn" class="ghost">Sort</button>
                 </div>
                 <div id="historyList" style="display:grid; gap:10px; margin-top:12px"></div>

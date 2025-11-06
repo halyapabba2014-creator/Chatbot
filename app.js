@@ -137,7 +137,7 @@ function messageNode(message) {
   wrap.className = `msg from-${message.role === "user" ? "user" : "bot"} appear`;
   wrap.dataset.id = message.id;
   wrap.innerHTML = `
-    <div class="avatar ${message.role === "user" ? "" : "bot"}">${message.role === "user" ? "U" : "E"}</div>
+    <div class="avatar ${message.role === "user" ? "" : "bot"}">${message.role === "user" ? "U" : "H"}</div>
     <div class="bubble">
       <div class="content">${mdToHtml(escapeHtml(message.content))}</div>
       <div class="meta-row">
@@ -183,15 +183,58 @@ function render(){
   renderMessages();
 }
 
-// Events
-sendBtn.addEventListener("click", () => submitMessage());
-userInput.addEventListener("keydown", (e) => {
-  if (e.key === "Enter" && !e.shiftKey && state.settings.enterToSend){
-    e.preventDefault(); submitMessage();
+// Events setup function - called after DOM is ready
+function setupEventListeners() {
+  // Send button events
+  if (sendBtn) {
+    sendBtn.addEventListener("click", (e) => { 
+      e.preventDefault(); 
+      e.stopPropagation(); 
+      console.log("Send button clicked");
+      submitMessage(); 
+    });
+    sendBtn.addEventListener("touchend", (e) => { 
+      e.preventDefault(); 
+      e.stopPropagation(); 
+      console.log("Send button touched");
+      submitMessage(); 
+    });
+    // Ensure button is enabled
+    sendBtn.disabled = false;
+    sendBtn.style.pointerEvents = "auto";
+    sendBtn.type = "button";
+    console.log("Send button setup complete");
+  } else {
+    console.error("Send button not found!");
   }
-});
-userInput.addEventListener("input", autoSizeTextarea);
-newChatBtn.addEventListener("click", newChat);
+
+  // User input events
+  if (userInput) {
+    userInput.addEventListener("keydown", (e) => {
+      if (e.key === "Enter" && !e.shiftKey && state.settings.enterToSend){
+        e.preventDefault(); 
+        console.log("Enter key pressed");
+        submitMessage();
+      }
+    });
+    // Mobile: handle form submission
+    userInput.addEventListener("keypress", (e) => {
+      if (e.key === "Enter" && !e.shiftKey && state.settings.enterToSend){
+        e.preventDefault(); 
+        submitMessage();
+      }
+    });
+    userInput.addEventListener("input", autoSizeTextarea);
+    // Ensure input is enabled
+    userInput.disabled = false;
+    userInput.readOnly = false;
+    console.log("User input setup complete");
+  } else {
+    console.error("User input not found!");
+  }
+  
+  if (newChatBtn) newChatBtn.addEventListener("click", newChat);
+}
 document.querySelectorAll(".hint").forEach(h => h.addEventListener("click", () => {
   userInput.value = h.dataset.text || "";
   userInput.focus();
@@ -233,21 +276,62 @@ function saveSettingsModal(){
 }
 
 // Submission and API
+let isSending = false;
 async function submitMessage(){
-  const text = userInput.value.trim();
-  if (!text) return;
-  const convo = currentConvo();
-  const userMsg = { id: uid(), role: "user", content: text, createdAt: now() };
-  convo.messages.push(userMsg);
-  // Update title from first user message
-  if (convo.title === "New chat") {
-    convo.title = truncate(text, 28);
+  console.log("submitMessage called", { isSending, userInput: userInput?.value });
+  
+  if (isSending) {
+    console.log("Already sending, ignoring");
+    return; // Prevent double-tap on mobile
   }
-  convo.updatedAt = now();
-  userInput.value = "";
-  save();
-  renderMessages();
-  await sendToModel(text);
+  
+  if (!userInput) {
+    console.error("userInput not found!");
+    return;
+  }
+  
+  const text = userInput.value.trim();
+  if (!text) {
+    console.log("No text to send");
+    return;
+  }
+  
+  console.log("Sending message:", text);
+  isSending = true;
+  
+  if (sendBtn) {
+    sendBtn.disabled = true;
+    sendBtn.style.opacity = "0.6";
+    sendBtn.textContent = "Sending...";
+  }
+  
+  try {
+    const convo = currentConvo();
+    const userMsg = { id: uid(), role: "user", content: text, createdAt: now() };
+    convo.messages.push(userMsg);
+    // Update title from first user message
+    if (convo.title === "New chat") {
+      convo.title = truncate(text, 28);
+    }
+    convo.updatedAt = now();
+    userInput.value = "";
+    if (typeof autoSizeTextarea === 'function') autoSizeTextarea();
+    save();
+    renderMessages();
+    await sendToModel(text);
+    console.log("Message sent successfully");
+  } catch (err) {
+    console.error("Submit error:", err);
+    alert("Error sending message: " + err.message);
+  } finally {
+    isSending = false;
+    if (sendBtn) {
+      sendBtn.disabled = false;
+      sendBtn.style.opacity = "1";
+      const dict = getDict();
+      sendBtn.textContent = (dict && dict.composer && dict.composer.send) ? dict.composer.send : "Send";
+    }
+  }
 }
 
 function addTyping(){
@@ -255,7 +339,7 @@ function addTyping(){
   el.className = "msg from-bot";
   el.id = "typing";
   el.innerHTML = `
-    <div class="avatar bot">E</div>
+    <div class="avatar bot">H</div>
     <div class="bubble"><div class="typing"><span></span><span></span><span></span></div></div>
   `;
   messagesEl.appendChild(el); messagesEl.scrollTop = messagesEl.scrollHeight;
@@ -270,32 +354,94 @@ async function sendToModel(text, { isRetry = false } = {}){
   const systemPrompt = getSystemPromptForLanguage(state.settings.language);
   const messagesPayload = systemPrompt ? [{ role: "system", content: systemPrompt }, ...contextMessages] : contextMessages;
   addTyping();
+  
+  if (!state.settings.apiKey || !state.settings.apiKey.trim()) {
+    removeTyping();
+    convo.messages.push({ 
+      id: uid(), 
+      role: "assistant", 
+      content: "Error: API key is missing. Please go to Settings and add your Euron API key to use Halya Chatbot.", 
+      createdAt: now() 
+    });
+    convo.updatedAt = now();
+    save();
+    renderMessages();
+    return;
+  }
+  
   try {
-    const res = await fetch("https://api.euron.one/api/v1/euri/chat/completions", {
+    console.log("Sending request to Euron API...");
+    // Use proxy endpoint when deployed to avoid CORS issues
+    const isDeployed = window.location.hostname !== 'localhost' && window.location.hostname !== '127.0.0.1';
+    const apiUrl = isDeployed ? '/api/chat' : 'https://api.euron.one/api/v1/euri/chat/completions';
+    
+    const requestBody = isDeployed ? {
+      messages: messagesPayload,
+      model: state.settings.model,
+      max_tokens: state.settings.max_tokens,
+      temperature: state.settings.temperature,
+      apiKey: state.settings.apiKey.trim()
+    } : {
+      messages: messagesPayload,
+      model: state.settings.model,
+      max_tokens: state.settings.max_tokens,
+      temperature: state.settings.temperature
+    };
+    
+    const headers = isDeployed ? {
+      "Content-Type": "application/json"
+    } : {
+      "Content-Type": "application/json",
+      "Authorization": `Bearer ${state.settings.apiKey.trim()}`
+    };
+    
+    const res = await fetch(apiUrl, {
       method: "POST",
-      headers: {
-        "Content-Type": "application/json",
-        "Authorization": `Bearer ${state.settings.apiKey || ""}`
-      },
-      body: JSON.stringify({
-        messages: messagesPayload,
-        model: state.settings.model,
-        max_tokens: state.settings.max_tokens,
-        temperature: state.settings.temperature
-      })
+      headers: headers,
+      body: JSON.stringify(requestBody),
+      mode: "cors"
     });
 
+    console.log("Response status:", res.status);
+    
     if (!res.ok) {
-      throw new Error(`HTTP ${res.status}`);
+      const errorText = await res.text();
+      console.error("API Error:", res.status, errorText);
+      let errorMsg = `API Error (${res.status})`;
+      try {
+        const errorData = JSON.parse(errorText);
+        errorMsg = errorData.error?.message || errorData.message || errorMsg;
+      } catch {}
+      throw new Error(errorMsg);
     }
+    
     const data = await res.json();
+    console.log("API Response:", data);
     const content = extractAssistantText(data) || "(No response)";
     convo.messages.push({ id: uid(), role: "assistant", content, createdAt: now() });
     convo.updatedAt = now();
     save();
   } catch (err) {
+    console.error("Send error:", err);
+    let errorMsg = err.message || "Unknown error";
+    
+    // Check for CORS errors
+    if (err.message.includes("Failed to fetch") || err.message.includes("NetworkError") || err.name === "TypeError") {
+      errorMsg = "Network error: This might be a CORS issue. The API may not allow requests from this domain. Please check your API key and try again.";
+    }
+    
+    // Check for authentication errors
+    if (err.message.includes("401") || err.message.includes("403") || err.message.includes("Unauthorized")) {
+      errorMsg = "Authentication failed: Please check your API key in Settings.";
+    }
+    
     const msg = isRetry ? "Retry failed" : "Request failed";
-    convo.messages.push({ id: uid(), role: "assistant", content: `${msg}: ${err.message}. Open Settings and check your API key.`, createdAt: now() });
+    convo.messages.push({ 
+      id: uid(), 
+      role: "assistant", 
+      content: `${msg}: ${errorMsg}. ${err.message.includes("CORS") ? "" : "Open Settings and check your API key."}`, 
+      createdAt: now() 
+    });
     convo.updatedAt = now();
     save();
   } finally {
@@ -423,18 +569,30 @@ if (langSelect) langSelect.addEventListener("change", () => { state.settings.lan
 
 // Init
 function init(){
+  console.log("Initializing app...");
   load();
   // Pre-fill settings UI
-  apiKeyInput.value = state.settings.apiKey || "";
-  modelSelect.value = state.settings.model || "gpt-4.1-nano";
-  tempInput.value = state.settings.temperature ?? 0.7;
-  maxTokensInput.value = state.settings.max_tokens ?? 1000;
-  enterToSend.checked = !!state.settings.enterToSend;
+  if (apiKeyInput) apiKeyInput.value = state.settings.apiKey || "";
+  if (modelSelect) modelSelect.value = state.settings.model || "gpt-4.1-nano";
+  if (tempInput) tempInput.value = state.settings.temperature ?? 0.7;
+  if (maxTokensInput) maxTokensInput.value = state.settings.max_tokens ?? 1000;
+  if (enterToSend) enterToSend.checked = !!state.settings.enterToSend;
   if (settingsLangSelect) settingsLangSelect.value = state.settings.language || "en";
   if (langSelect) langSelect.value = state.settings.language || "en";
   applyLanguage();
   if (!Object.keys(state.conversations).length) newChat();
   render();
+  
+  // Setup event listeners after DOM is ready
+  setupEventListeners();
+  
+  // Ensure textarea is enabled and focusable
+  if (userInput) {
+    userInput.disabled = false;
+    userInput.readOnly = false;
+    userInput.style.pointerEvents = "auto";
+    userInput.style.opacity = "1";
+  }
   // If no API key, open help
   if (!state.settings.apiKey) openModal(helpModal);
 
@@ -463,9 +621,9 @@ const I18N = {
     "sidebar.settings":"Settings",
     "sidebar.exportAll":"Export All",
     "sidebar.clearAll":"Clear All",
-    "header.title":"Euron Assistant",
+    "header.title":"Halya Chatbot",
     "header.subtitle":"Powered by euron.one • Netflix dark theme",
-    "composer.placeholder":"Message Euron Assistant",
+    "composer.placeholder":"Message Halya Chatbot",
     "composer.send":"Send",
     "composer.attach":"Attach file",
     "hints.poem":"AI Poem",
@@ -486,7 +644,7 @@ const I18N = {
     "settings.language":"Language",
     "settings.save":"Save",
     "help.title":"Welcome",
-    "help.body1":"<strong>Hello, I’m Halya.</strong> Welcome to your Euron-powered chat assistant.",
+    "help.body1":"<strong>Hello, I'm Halya.</strong> Welcome to your Halya chatbot powered by Euron.",
     "help.body2":"Open Settings to add your API key to start chatting. Your key will be stored locally only.",
     "help.body3":"Tip: Use quick prompts below the composer to get started.",
     "welcome":"Welcome! I’m Halya — your guide. How can I help today?"
@@ -496,9 +654,9 @@ const I18N = {
     "sidebar.settings":"Ajustes",
     "sidebar.exportAll":"Exportar todo",
     "sidebar.clearAll":"Borrar todo",
-    "header.title":"Asistente Euron",
+    "header.title":"Halya Chatbot",
     "header.subtitle":"Impulsado por euron.one • Tema oscuro",
-    "composer.placeholder":"Mensaje al Asistente Euron",
+    "composer.placeholder":"Mensaje a Halya Chatbot",
     "composer.send":"Enviar",
     "composer.attach":"Adjuntar archivo",
     "hints.poem":"Poema IA",
@@ -529,9 +687,9 @@ const I18N = {
     "sidebar.settings":"Paramètres",
     "sidebar.exportAll":"Exporter tout",
     "sidebar.clearAll":"Tout effacer",
-    "header.title":"Assistant Euron",
+    "header.title":"Halya Chatbot",
     "header.subtitle":"Propulsé par euron.one • Thème sombre",
-    "composer.placeholder":"Message à l’assistant Euron",
+    "composer.placeholder":"Message à Halya Chatbot",
     "composer.send":"Envoyer",
     "composer.attach":"Joindre un fichier",
     "hints.poem":"Poème IA",
@@ -562,9 +720,9 @@ const I18N = {
     "sidebar.settings":"Einstellungen",
     "sidebar.exportAll":"Alles exportieren",
     "sidebar.clearAll":"Alles löschen",
-    "header.title":"Euron-Assistent",
+    "header.title":"Halya Chatbot",
     "header.subtitle":"Bereitgestellt von euron.one • Dunkles Thema",
-    "composer.placeholder":"Nachricht an den Euron-Assistenten",
+    "composer.placeholder":"Nachricht an Halya Chatbot",
     "composer.send":"Senden",
     "composer.attach":"Datei anhängen",
     "hints.poem":"KI-Gedicht",
@@ -595,9 +753,9 @@ const I18N = {
     "sidebar.settings":"Configurações",
     "sidebar.exportAll":"Exportar tudo",
     "sidebar.clearAll":"Limpar tudo",
-    "header.title":"Assistente Euron",
+    "header.title":"Halya Chatbot",
     "header.subtitle":"Com tecnologia euron.one • Tema escuro",
-    "composer.placeholder":"Mensagem para o Assistente Euron",
+    "composer.placeholder":"Mensagem para Halya Chatbot",
     "composer.send":"Enviar",
     "composer.attach":"Anexar arquivo",
     "hints.poem":"Poema IA",
@@ -628,9 +786,9 @@ const I18N = {
     "sidebar.settings":"Impostazioni",
     "sidebar.exportAll":"Esporta tutto",
     "sidebar.clearAll":"Cancella tutto",
-    "header.title":"Assistente Euron",
+    "header.title":"Halya Chatbot",
     "header.subtitle":"Basato su euron.one • Tema scuro",
-    "composer.placeholder":"Messaggia l’assistente Euron",
+    "composer.placeholder":"Messaggia Halya Chatbot",
     "composer.send":"Invia",
     "composer.attach":"Allega file",
     "hints.poem":"Poesia IA",
@@ -661,9 +819,9 @@ const I18N = {
     "sidebar.settings":"Настройки",
     "sidebar.exportAll":"Экспортировать всё",
     "sidebar.clearAll":"Очистить всё",
-    "header.title":"Ассистент Euron",
+    "header.title":"Halya Chatbot",
     "header.subtitle":"На базе euron.one • Тёмная тема",
-    "composer.placeholder":"Сообщение ассистенту Euron",
+    "composer.placeholder":"Сообщение Halya Chatbot",
     "composer.send":"Отправить",
     "composer.attach":"Прикрепить файл",
     "hints.poem":"Стих об ИИ",
@@ -694,9 +852,9 @@ const I18N = {
     "sidebar.settings":"设置",
     "sidebar.exportAll":"导出全部",
     "sidebar.clearAll":"清除全部",
-    "header.title":"Euron 助手",
+    "header.title":"Halya Chatbot",
     "header.subtitle":"由 euron.one 提供 • 深色主题",
-    "composer.placeholder":"给 Euron 助手发消息",
+    "composer.placeholder":"给 Halya Chatbot 发消息",
     "composer.send":"发送",
     "composer.attach":"附件",
     "hints.poem":"AI 诗歌",
@@ -727,9 +885,9 @@ const I18N = {
     "sidebar.settings":"設定",
     "sidebar.exportAll":"すべてエクスポート",
     "sidebar.clearAll":"すべてクリア",
-    "header.title":"Euron アシスタント",
+    "header.title":"Halya Chatbot",
     "header.subtitle":"euron.one 搭載 • ダークテーマ",
-    "composer.placeholder":"Euron アシスタントにメッセージ",
+    "composer.placeholder":"Halya Chatbot にメッセージ",
     "composer.send":"送信",
     "composer.attach":"ファイル添付",
     "hints.poem":"AI 詩",
@@ -760,9 +918,9 @@ const I18N = {
     "sidebar.settings":"설정",
     "sidebar.exportAll":"모두 내보내기",
     "sidebar.clearAll":"모두 지우기",
-    "header.title":"Euron 도우미",
+    "header.title":"Halya Chatbot",
     "header.subtitle":"euron.one 기반 • 다크 테마",
-    "composer.placeholder":"Euron 도우미에게 메시지",
+    "composer.placeholder":"Halya Chatbot에게 메시지",
     "composer.send":"보내기",
     "composer.attach":"파일 첨부",
     "hints.poem":"AI 시",
@@ -793,9 +951,9 @@ const I18N = {
     "sidebar.settings":"Ayarlar",
     "sidebar.exportAll":"Tümünü dışa aktar",
     "sidebar.clearAll":"Tümünü temizle",
-    "header.title":"Euron Asistanı",
+    "header.title":"Halya Chatbot",
     "header.subtitle":"euron.one destekli • Koyu tema",
-    "composer.placeholder":"Euron Asistanına mesaj yazın",
+    "composer.placeholder":"Halya Chatbot'a mesaj yazın",
     "composer.send":"Gönder",
     "composer.attach":"Dosya ekle",
     "hints.poem":"YZ Şiiri",
@@ -826,9 +984,9 @@ const I18N = {
     "sidebar.settings":"सेटिंग्स",
     "sidebar.exportAll":"सब निर्यात करें",
     "sidebar.clearAll":"सब साफ करें",
-    "header.title":"Euron सहायक",
+    "header.title":"Halya Chatbot",
     "header.subtitle":"euron.one द्वारा संचालित • गहरा थीम",
-    "composer.placeholder":"Euron सहायक को संदेश लिखें",
+    "composer.placeholder":"Halya Chatbot को संदेश लिखें",
     "composer.send":"भेजें",
     "composer.attach":"फ़ाइल संलग्न करें",
     "hints.poem":"एआई कविता",
@@ -859,9 +1017,9 @@ const I18N = {
     "sidebar.settings":"الإعدادات",
     "sidebar.exportAll":"تصدير الكل",
     "sidebar.clearAll":"مسح الكل",
-    "header.title":"مساعد يورون",
+    "header.title":"Halya Chatbot",
     "header.subtitle":"مدعوم من euron.one • سمة داكنة",
-    "composer.placeholder":"أرسل رسالة إلى المساعد",
+    "composer.placeholder":"أرسل رسالة إلى Halya Chatbot",
     "composer.send":"إرسال",
     "composer.attach":"إرفاق ملف",
     "hints.poem":"قصيدة الذكاء الاصطناعي",
@@ -945,6 +1103,12 @@ function getSystemPromptForLanguage(lang){
   return byLang[lang] || byLang.en;
 }
 
-init();
+// Ensure DOM is ready before initializing
+if (document.readyState === 'loading') {
+  document.addEventListener('DOMContentLoaded', init);
+} else {
+  // DOM is already ready
+  init();
+}
 
 
