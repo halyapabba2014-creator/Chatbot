@@ -1,0 +1,16 @@
+{
+  "name": "halya-chat",
+  "version": "1.0.0",
+  "description": "Halya Chat - Euron AI Chatbot",
+  "main": "server.js",
+  "scripts": {
+    "start": "node server.js"
+  },
+  "keywords": ["chatbot", "ai", "euron"],
+  "author": "Halya",
+  "license": "MIT",
+  "dependencies": {
+    "express": "^4.18.2"
+  }
+}
+
