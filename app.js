@@ -3,7 +3,7 @@ const state = {
   conversations: {},
   currentId: null,
   settings: {
-    apiKey: "euri-7e7c40fa68a0a0e43829e47f01a890c191ee5ecdde4537aabf6bc02b8955df53",
+    apiKey: "euri-b801c0e9d8fd5701f196063ffec3b16a363a1b127fba28616fdf09f6730bdc54",
     model: "gpt-4.1-nano",
     temperature: 0.7,
     max_tokens: 1000,
